@@ -39,15 +39,48 @@ const platforms = [
   { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'text-blue-500' },
 ];
 
+const niches = [
+  "Marketing Digital",
+  "E-commerce",
+  "Desarrollo Personal",
+  "Tecnología / SaaS",
+  "Fitness y Salud",
+  "Finanzas y Cripto",
+  "Estilo de Vida",
+  "Educación / Cursos",
+  "Bienes Raíces",
+  "Moda y Belleza"
+];
+
+const goals = [
+  { id: 'viral', name: 'Viralidad', description: 'Alcance masivo y nuevos seguidores', icon: Sparkles },
+  { id: 'sales', name: 'Ventas', description: 'Conversión directa y leads', icon: Target },
+  { id: 'authority', name: 'Autoridad', description: 'Posicionamiento como experto', icon: ShieldCheck },
+  { id: 'education', name: 'Educación', description: 'Aportar valor y tutoriales', icon: LayoutDashboard },
+  { id: 'community', name: 'Comunidad', description: 'Fidelizar y generar engagement', icon: MessageSquare },
+];
+
 export default function App() {
   const [idea, setIdea] = useState('');
-  const [niche, setNiche] = useState('');
+  const [niche, setNiche] = useState('Marketing Digital');
+  const [goal, setGoal] = useState('viral');
   const [platform, setPlatform] = useState('tiktok');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [activeTab, setActiveTab] = useState<'analyzer' | 'history' | 'trends'>('analyzer');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; details?: string } | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<'niche' | 'goal' | null>(null);
+  const [isTrendsUpdating, setIsTrendsUpdating] = useState(false);
+  const [trends, setTrends] = useState([
+    { title: 'AI UGC + Avatars', growth: '+90%', desc: 'Contenido generado con IA para anuncios masivos.', tags: ['Marketing', 'Ecom'] },
+    { title: 'Hiper-Autenticidad', growth: '+120%', desc: 'Valoración del error real y detrás de cámaras.', tags: ['Personal Brand'] },
+    { title: 'Long Form Returns', growth: '+45%', desc: 'YouTube recuperando fuerza por autoridad.', tags: ['Edutainment'] },
+    { title: 'Faceless Hubs', growth: '+200%', desc: 'Narraciones automáticas con storytelling IA.', tags: ['Niches'] },
+    { title: 'Micro-Comunidades', growth: '+75%', desc: 'Intereses hiper-específicos dominan el feed.', tags: ['Community'] },
+    { title: 'AI Multimodal', growth: '+310%', desc: 'Una idea genera 10 formatos instantáneamente.', tags: ['Future'] },
+  ]);
 
   useEffect(() => {
     const saved = localStorage.getItem('luxor_history');
@@ -55,25 +88,51 @@ export default function App() {
   }, []);
 
   const handleAnalyze = async () => {
-    if (!idea) return;
+    if (isAnalyzing) return;
+    if (!idea.trim()) {
+      setError({ message: 'Escribe una idea para comenzar el análisis.' });
+      return;
+    }
+
     setIsAnalyzing(true);
+    setError(null);
     try {
       const resp = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea, platform, niche }),
+        body: JSON.stringify({ idea, platform, niche, goal }),
       });
+
       const data = await resp.json();
+      if (!resp.ok) {
+        setError({ 
+          message: data.error || 'Error en el servidor',
+          details: data.details 
+        });
+        return;
+      }
+
       const finalResult = { ...data, timestamp: Date.now(), idea };
       setResult(finalResult);
       const newHistory = [finalResult, ...history.slice(0, 49)];
       setHistory(newHistory);
       localStorage.setItem('luxor_history', JSON.stringify(newHistory));
-    } catch (error) {
-      console.error(error);
+    } catch (err: any) {
+      console.error("Fetch Error:", err);
+      setError({ message: err.message || 'Error al conectar con Luxor IA' });
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const refreshTrends = () => {
+    setIsTrendsUpdating(true);
+    setTimeout(() => {
+      // Simulate new trends
+      const newTrends = [...trends].sort(() => Math.random() - 0.5);
+      setTrends(newTrends);
+      setIsTrendsUpdating(false);
+    }, 1500);
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -131,7 +190,11 @@ export default function App() {
                <ShieldCheck size={14} />
                <span>Importar Ideas</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 luxor-button-primary rounded-lg text-xs font-bold transition-all">
+            <button 
+              id="header-new-analysis"
+              onClick={() => { setResult(null); setActiveTab('analyzer'); }}
+              className="flex items-center gap-2 px-4 py-2 luxor-button-primary rounded-lg text-xs font-bold transition-all"
+            >
                <Plus size={14} />
                <span>Nuevo Análisis</span>
             </button>
@@ -162,7 +225,79 @@ export default function App() {
                   </div>
 
                   <div className="max-w-3xl mx-auto space-y-6">
-                    <div className="luxor-card p-2 group focus-within:border-luxor-accent/30 transition-all duration-500">
+                    <div className="flex flex-wrap gap-4 items-center justify-center">
+                      {/* Goal Selector */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsDropdownOpen(isDropdownOpen === 'goal' ? null : 'goal')}
+                          className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-sm font-medium"
+                        >
+                          {React.createElement(goals.find(g => g.id === goal)?.icon || Target, { size: 16, className: "text-luxor-accent" })}
+                          <span>Objetivo: {goals.find(g => g.id === goal)?.name}</span>
+                        </button>
+                        
+                        <AnimatePresence>
+                          {isDropdownOpen === 'goal' && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 10 }}
+                              className="absolute top-full left-0 mt-2 w-64 bg-luxor-black border border-white/10 rounded-xl shadow-2xl z-[60] py-2"
+                            >
+                              {goals.map(g => (
+                                <button
+                                  key={g.id}
+                                  onClick={() => { setGoal(g.id); setIsDropdownOpen(null); }}
+                                  className={`w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center gap-3 ${goal === g.id ? 'bg-luxor-accent/10 border-l-2 border-luxor-accent' : ''}`}
+                                >
+                                  <g.icon size={18} className={goal === g.id ? 'text-luxor-accent' : 'text-white/40'} />
+                                  <div>
+                                    <p className="text-sm font-bold">{g.name}</p>
+                                    <p className="text-[10px] text-white/40 uppercase tracking-tighter">{g.description}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Niche Dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsDropdownOpen(isDropdownOpen === 'niche' ? null : 'niche')}
+                          className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-sm font-medium"
+                        >
+                          <Search size={16} className="text-luxor-accent" />
+                          <span>Nicho: {niche}</span>
+                        </button>
+                        
+                        <AnimatePresence>
+                          {isDropdownOpen === 'niche' && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 10 }}
+                              className="absolute top-full left-0 mt-2 w-56 bg-luxor-black border border-white/10 rounded-xl shadow-2xl z-[60] py-2"
+                            >
+                              <div className="max-h-64 overflow-y-auto">
+                                {niches.map(n => (
+                                  <button
+                                    key={n}
+                                    onClick={() => { setNiche(n); setIsDropdownOpen(null); }}
+                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${n === niche ? 'text-luxor-accent bg-luxor-accent/5' : 'text-white/60'}`}
+                                  >
+                                    {n}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+
+                    <div className="luxor-card p-2 group focus-within:border-luxor-accent/30 transition-all duration-500 relative">
                       <textarea
                         id="idea-input"
                         placeholder="Escribe tu idea estratégica de contenido..."
@@ -185,22 +320,12 @@ export default function App() {
                           ))}
                         </div>
                         <div className="flex items-center gap-4">
-                           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/5">
-                             <Target size={14} className="text-white/40" />
-                             <input 
-                               id="niche-input"
-                               placeholder="Nicho/Industria"
-                               value={niche}
-                               onChange={(e) => setNiche(e.target.value)}
-                               className="bg-transparent outline-none text-xs w-32 placeholder:text-white/20"
-                             />
-                           </div>
                            <button
                              id="analyze-button"
                              onClick={handleAnalyze}
-                             disabled={!idea || isAnalyzing}
+                             disabled={isAnalyzing}
                              className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold transition-all ${
-                               !idea || isAnalyzing ? 'bg-white/5 text-white/20' : 'bg-white text-black hover:scale-105 active:scale-95'
+                               isAnalyzing ? 'bg-white/5 text-white/20' : 'bg-white text-black hover:scale-105 active:scale-95'
                              }`}
                            >
                              {isAnalyzing ? (
@@ -234,6 +359,27 @@ export default function App() {
                          </div>
                          <p className="text-luxor-accent font-mono text-sm tracking-widest uppercase">Radar IA Activo...</p>
                          <p className="text-white/40 text-[10px] uppercase font-bold italic tracking-tighter">Evaluando retención psicológica...</p>
+                      </motion.div>
+                    )}
+
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm"
+                      >
+                         <div className="flex items-center justify-between mb-2">
+                           <div className="flex items-center gap-2">
+                             <AlertCircle size={16} />
+                             <span className="font-bold">{error.message}</span>
+                           </div>
+                           <button onClick={handleAnalyze} className="text-[10px] font-black uppercase tracking-widest bg-red-500 text-white px-3 py-1 rounded-full">Reintentar</button>
+                         </div>
+                         {error.details && (
+                           <p className="text-[10px] text-red-500/60 font-mono mt-2 pl-6 border-l border-red-500/20 break-all">
+                             {error.details}
+                           </p>
+                         )}
                       </motion.div>
                     )}
                   </div>
@@ -471,30 +617,51 @@ export default function App() {
 
           {activeTab === 'trends' && (
              <div className="space-y-8 py-8">
-                <h2 className="text-3xl font-display font-bold">Radar de Tendencias 2026</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   {[
-                     { title: 'AI UGC + Avatars', growth: '+90%', desc: 'Contenido generado con IA para anuncios masivos.', tags: ['Marketing', 'Ecom'] },
-                     { title: 'Hiper-Autenticidad', growth: '+120%', desc: 'Valoración del error real y detrás de cámaras.', tags: ['Personal Brand'] },
-                     { title: 'Long Form Returns', growth: '+45%', desc: 'YouTube recuperando fuerza por autoridad.', tags: ['Edutainment'] },
-                     { title: 'Faceless Hubs', growth: '+200%', desc: 'Narraciones automáticas con storytelling IA.', tags: ['Niches'] },
-                     { title: 'Micro-Comunidades', growth: '+75%', desc: 'Intereses hiper-específicos dominan el feed.', tags: ['Community'] },
-                     { title: 'AI Multimodal', growth: '+310%', desc: 'Una idea genera 10 formatos instantáneamente.', tags: ['Future'] },
-                   ].map((t, idx) => (
-                      <div key={idx} className="luxor-card p-6 space-y-4">
-                         <div className="flex items-center justify-between">
-                            <h4 className="font-black text-sm uppercase tracking-tight">{t.title}</h4>
-                            <span className="text-[10px] font-mono text-luxor-accent font-bold px-2 py-0.5 bg-luxor-accent/10 rounded-full">{t.growth}</span>
-                         </div>
-                         <p className="text-[10px] text-white/40 leading-relaxed font-medium uppercase tracking-tighter">{t.desc}</p>
-                         <div className="flex gap-2">
-                            {t.tags.map(tag => (
-                              <span key={tag} className="text-[8px] uppercase tracking-tighter font-black px-2 py-0.5 bg-white/5 rounded-full border border-white/5 text-white/40">{tag}</span>
-                            ))}
-                         </div>
-                      </div>
-                   ))}
+                <div className="flex items-center justify-between">
+                   <div>
+                     <h2 className="text-3xl font-display font-bold">Radar de Tendencias 2026</h2>
+                     <p className="text-xs text-white/40 mt-1 uppercase tracking-widest font-mono">Actualizado con señales globales de IA</p>
+                   </div>
+                   <button 
+                     onClick={refreshTrends}
+                     disabled={isTrendsUpdating}
+                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white/5 border border-white/10 hover:bg-white/10 ${isTrendsUpdating ? 'cursor-not-allowed opacity-50' : ''}`}
+                   >
+                     <RefreshCcw size={14} className={isTrendsUpdating ? 'animate-spin' : ''} />
+                     <span>{isTrendsUpdating ? 'Sincronizando...' : 'Actualizar Radar'}</span>
+                   </button>
                 </div>
+                
+                <AnimatePresence mode="wait">
+                  <motion.div 
+                    key={trends[0].title} // Force re-animation when order changes
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                  >
+                    {trends.map((t, idx) => (
+                       <motion.div 
+                         initial={{ opacity: 0, y: 10 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         transition={{ delay: idx * 0.1 }}
+                         key={idx} 
+                         className="luxor-card p-6 space-y-4 hover:border-luxor-accent/30 transition-all border-white/5"
+                       >
+                          <div className="flex items-center justify-between">
+                             <h4 className="font-black text-sm uppercase tracking-tight">{t.title}</h4>
+                             <span className="text-[10px] font-mono text-luxor-accent font-bold px-2 py-0.5 bg-luxor-accent/10 rounded-full">{t.growth}</span>
+                          </div>
+                          <p className="text-[10px] text-white/40 leading-relaxed font-medium uppercase tracking-tighter">{t.desc}</p>
+                          <div className="flex gap-2">
+                             {t.tags.map(tag => (
+                               <span key={tag} className="text-[8px] uppercase tracking-tighter font-black px-2 py-0.5 bg-white/5 rounded-full border border-white/5 text-white/40">{tag}</span>
+                             ))}
+                          </div>
+                       </motion.div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
              </div>
           )}
         </div>
