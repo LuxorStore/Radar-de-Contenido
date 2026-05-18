@@ -1,0 +1,8 @@
+{
+  "name": "Luxor — Radar de Contenido",
+  "description": "Plataforma premium de análisis predictivo y estratégico de ideas de contenido para creadores y marcas. Detecta potencial viral y optimiza para YouTube, TikTok, Instagram y LinkedIn.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
