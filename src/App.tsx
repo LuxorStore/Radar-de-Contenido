@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Zap, 
   Radar, 
@@ -27,9 +27,7 @@ import {
   Smartphone,
   Copy,
   CheckCircle2,
-  AlertCircle,
-  Upload,
-  X
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { AnalysisResult } from './types';
@@ -41,139 +39,100 @@ const platforms = [
   { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, color: 'text-blue-500' },
 ];
 
-// ── Llama directamente a Gemini desde el frontend ──────────────────────────
-async function callGemini(idea: string, platform: string, niche: string): Promise<AnalysisResult> {
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY ?? '';
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+const niches = [
+  "Marketing Digital",
+  "E-commerce",
+  "Desarrollo Personal",
+  "Tecnología / SaaS",
+  "Fitness y Salud",
+  "Finanzas y Cripto",
+  "Estilo de Vida",
+  "Educación / Cursos",
+  "Bienes Raíces",
+  "Moda y Belleza"
+];
 
-  const prompt = `
-Eres un estratega experto en contenido viral. Analiza la siguiente idea de contenido y devuelve ÚNICAMENTE un objeto JSON válido (sin markdown, sin explicaciones) con esta estructura exacta:
-
-{
-  "score": <número 0-100>,
-  "analysis": {
-    "viralPotential": <número 0-10>,
-    "authorityPotential": <número 0-10>,
-    "conversionPotential": <número 0-10>,
-    "retentionPotential": <número 0-10>
-  },
-  "improvements": {
-    "strongerHooks": ["hook 1", "hook 2", "hook 3"]
-  },
-  "diagnosis": {
-    "Gancho": { "status": "fuerte", "detail": "descripción breve" },
-    "Retención": { "status": "mejorable", "detail": "descripción breve" },
-    "CTA": { "status": "fuerte", "detail": "descripción breve" }
-  },
-  "titles": {
-    "Título A": "título 1",
-    "Título B": "título 2",
-    "Título C": "título 3",
-    "Título D": "título 4"
-  },
-  "adaptation": {
-    "tiktok": "guión/descripción para TikTok",
-    "youtube": "guión/descripción para YouTube",
-    "instagram": "guión/descripción para Instagram",
-    "linkedin": "guión/descripción para LinkedIn"
-  }
-}
-
-Idea: "${idea}"
-Plataforma principal: ${platform}
-Nicho/Industria: ${niche || 'Digital / General'}
-`;
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1500 },
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err?.error?.message ?? 'Error al llamar a Gemini');
-  }
-
-  const json = await res.json();
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-  // Limpia posibles bloques ```json ... ```
-  const clean = raw.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean) as AnalysisResult;
-}
+const goals = [
+  { id: 'viral', name: 'Viralidad', description: 'Alcance masivo y nuevos seguidores', icon: Sparkles },
+  { id: 'sales', name: 'Ventas', description: 'Conversión directa y leads', icon: Target },
+  { id: 'authority', name: 'Autoridad', description: 'Posicionamiento como experto', icon: ShieldCheck },
+  { id: 'education', name: 'Educación', description: 'Aportar valor y tutoriales', icon: LayoutDashboard },
+  { id: 'community', name: 'Comunidad', description: 'Fidelizar y generar engagement', icon: MessageSquare },
+];
 
 export default function App() {
   const [idea, setIdea] = useState('');
-  const [niche, setNiche] = useState('');
+  const [niche, setNiche] = useState('Marketing Digital');
+  const [goal, setGoal] = useState('viral');
   const [platform, setPlatform] = useState('tiktok');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
   const [activeTab, setActiveTab] = useState<'analyzer' | 'history' | 'trends'>('analyzer');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Estado para el modal de Importar Ideas
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importText, setImportText] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<{ message: string; details?: string } | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<'niche' | 'goal' | null>(null);
+  const [isTrendsUpdating, setIsTrendsUpdating] = useState(false);
+  const [trends, setTrends] = useState([
+    { title: 'AI UGC + Avatars', growth: '+90%', desc: 'Contenido generado con IA para anuncios masivos.', tags: ['Marketing', 'Ecom'] },
+    { title: 'Hiper-Autenticidad', growth: '+120%', desc: 'Valoración del error real y detrás de cámaras.', tags: ['Personal Brand'] },
+    { title: 'Long Form Returns', growth: '+45%', desc: 'YouTube recuperando fuerza por autoridad.', tags: ['Edutainment'] },
+    { title: 'Faceless Hubs', growth: '+200%', desc: 'Narraciones automáticas con storytelling IA.', tags: ['Niches'] },
+    { title: 'Micro-Comunidades', growth: '+75%', desc: 'Intereses hiper-específicos dominan el feed.', tags: ['Community'] },
+    { title: 'AI Multimodal', growth: '+310%', desc: 'Una idea genera 10 formatos instantáneamente.', tags: ['Future'] },
+  ]);
 
   useEffect(() => {
     const saved = localStorage.getItem('luxor_history');
     if (saved) setHistory(JSON.parse(saved));
   }, []);
 
-  // ── Analizar ────────────────────────────────────────────────────────────
   const handleAnalyze = async () => {
-    if (!idea) return;
+    if (isAnalyzing) return;
+    if (!idea.trim()) {
+      setError({ message: 'Escribe una idea para comenzar el análisis.' });
+      return;
+    }
+
     setIsAnalyzing(true);
     setError(null);
     try {
-      const data = await callGemini(idea, platform, niche);
-      const finalResult: AnalysisResult = { ...data, timestamp: Date.now(), idea };
+      const resp = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea, platform, niche, goal }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) {
+        setError({ 
+          message: data.error || 'Error en el servidor',
+          details: data.details 
+        });
+        return;
+      }
+
+      const finalResult = { ...data, timestamp: Date.now(), idea };
       setResult(finalResult);
       const newHistory = [finalResult, ...history.slice(0, 49)];
       setHistory(newHistory);
       localStorage.setItem('luxor_history', JSON.stringify(newHistory));
     } catch (err: any) {
-      console.error(err);
-      setError(err?.message ?? 'Error desconocido. Verifica tu VITE_GEMINI_API_KEY.');
+      console.error("Fetch Error:", err);
+      setError({ message: err.message || 'Error al conectar con Luxor IA' });
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // ── Nuevo Análisis ───────────────────────────────────────────────────────
-  const handleNuevoAnalisis = () => {
-    setResult(null);
-    setIdea('');
-    setNiche('');
-    setPlatform('tiktok');
-    setError(null);
-    setActiveTab('analyzer');
-  };
-
-  // ── Importar Ideas ───────────────────────────────────────────────────────
-  const handleImportConfirm = () => {
-    if (!importText.trim()) return;
-    setIdea(importText.trim());
-    setImportText('');
-    setShowImportModal(false);
-    setResult(null);
-    setActiveTab('analyzer');
-  };
-
-  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImportText((ev.target?.result as string) ?? '');
-    };
-    reader.readAsText(file);
+  const refreshTrends = () => {
+    setIsTrendsUpdating(true);
+    setTimeout(() => {
+      // Simulate new trends
+      const newTrends = [...trends].sort(() => Math.random() - 0.5);
+      setTrends(newTrends);
+      setIsTrendsUpdating(false);
+    }, 1500);
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -184,75 +143,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex text-white overflow-hidden bg-[#050505]">
-
-      {/* ── Modal Importar Ideas ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showImportModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-            onClick={(e) => { if (e.target === e.currentTarget) setShowImportModal(false); }}
-          >
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.92, opacity: 0 }}
-              className="w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl p-8 space-y-6 shadow-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold uppercase tracking-widest">Importar Ideas</h2>
-                <button onClick={() => setShowImportModal(false)} className="text-white/30 hover:text-white transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <p className="text-xs text-white/40 uppercase tracking-wider">
-                Pega tu idea directamente o sube un archivo .txt
-              </p>
-
-              <textarea
-                value={importText}
-                onChange={(e) => setImportText(e.target.value)}
-                placeholder="Escribe o pega tu idea aquí..."
-                className="w-full h-36 bg-white/5 border border-white/10 rounded-xl p-4 outline-none resize-none text-sm placeholder:text-white/20 focus:border-luxor-accent/40 transition-all"
-              />
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-xs hover:bg-white/10 transition-all"
-                >
-                  <Upload size={14} />
-                  <span>Cargar .txt</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt"
-                  className="hidden"
-                  onChange={handleFileImport}
-                />
-                <button
-                  onClick={handleImportConfirm}
-                  disabled={!importText.trim()}
-                  className={`ml-auto flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
-                    importText.trim()
-                      ? 'bg-white text-black hover:scale-105 active:scale-95'
-                      : 'bg-white/10 text-white/20 cursor-not-allowed'
-                  }`}
-                >
-                  Usar esta Idea
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
+      {/* Sidebar */}
       <aside className="w-20 md:w-64 border-r border-white/10 bg-luxor-sidebar z-50 flex flex-col">
         <div className="p-6 flex items-center gap-3">
           <div className="w-8 h-8 bg-luxor-accent rounded-lg flex items-center justify-center font-display font-black text-black text-xs">LX</div>
@@ -287,7 +178,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* ── Main Content ─────────────────────────────────────────────────── */}
+      {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative luxor-gradient">
         <header className="sticky top-0 h-16 border-b border-white/10 bg-luxor-black/50 backdrop-blur-xl z-40 flex items-center justify-between px-8">
           <div className="flex flex-col">
@@ -295,21 +186,17 @@ export default function App() {
             <p className="text-[10px] text-white/40 uppercase tracking-widest">Análisis en tiempo real • {new Date().toLocaleDateString()}</p>
           </div>
           <div className="flex items-center gap-4">
-            {/* ✅ CORREGIDO: Importar Ideas abre el modal */}
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-xs hover:bg-white/10 transition-all"
-            >
-              <Upload size={14} />
-              <span>Importar Ideas</span>
+            <button className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-xs hover:bg-white/10 transition-all">
+               <ShieldCheck size={14} />
+               <span>Importar Ideas</span>
             </button>
-            {/* ✅ CORREGIDO: Nuevo Análisis limpia el formulario y vuelve al analizador */}
-            <button
-              onClick={handleNuevoAnalisis}
+            <button 
+              id="header-new-analysis"
+              onClick={() => { setResult(null); setActiveTab('analyzer'); }}
               className="flex items-center gap-2 px-4 py-2 luxor-button-primary rounded-lg text-xs font-bold transition-all"
             >
-              <Plus size={14} />
-              <span>Nuevo Análisis</span>
+               <Plus size={14} />
+               <span>Nuevo Análisis</span>
             </button>
           </div>
         </header>
@@ -338,7 +225,79 @@ export default function App() {
                   </div>
 
                   <div className="max-w-3xl mx-auto space-y-6">
-                    <div className="luxor-card p-2 group focus-within:border-luxor-accent/30 transition-all duration-500">
+                    <div className="flex flex-wrap gap-4 items-center justify-center">
+                      {/* Goal Selector */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsDropdownOpen(isDropdownOpen === 'goal' ? null : 'goal')}
+                          className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-sm font-medium"
+                        >
+                          {React.createElement(goals.find(g => g.id === goal)?.icon || Target, { size: 16, className: "text-luxor-accent" })}
+                          <span>Objetivo: {goals.find(g => g.id === goal)?.name}</span>
+                        </button>
+                        
+                        <AnimatePresence>
+                          {isDropdownOpen === 'goal' && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 10 }}
+                              className="absolute top-full left-0 mt-2 w-64 bg-luxor-black border border-white/10 rounded-xl shadow-2xl z-[60] py-2"
+                            >
+                              {goals.map(g => (
+                                <button
+                                  key={g.id}
+                                  onClick={() => { setGoal(g.id); setIsDropdownOpen(null); }}
+                                  className={`w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center gap-3 ${goal === g.id ? 'bg-luxor-accent/10 border-l-2 border-luxor-accent' : ''}`}
+                                >
+                                  <g.icon size={18} className={goal === g.id ? 'text-luxor-accent' : 'text-white/40'} />
+                                  <div>
+                                    <p className="text-sm font-bold">{g.name}</p>
+                                    <p className="text-[10px] text-white/40 uppercase tracking-tighter">{g.description}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Niche Dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsDropdownOpen(isDropdownOpen === 'niche' ? null : 'niche')}
+                          className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all text-sm font-medium"
+                        >
+                          <Search size={16} className="text-luxor-accent" />
+                          <span>Nicho: {niche}</span>
+                        </button>
+                        
+                        <AnimatePresence>
+                          {isDropdownOpen === 'niche' && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 10 }}
+                              className="absolute top-full left-0 mt-2 w-56 bg-luxor-black border border-white/10 rounded-xl shadow-2xl z-[60] py-2"
+                            >
+                              <div className="max-h-64 overflow-y-auto">
+                                {niches.map(n => (
+                                  <button
+                                    key={n}
+                                    onClick={() => { setNiche(n); setIsDropdownOpen(null); }}
+                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors ${n === niche ? 'text-luxor-accent bg-luxor-accent/5' : 'text-white/60'}`}
+                                  >
+                                    {n}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+
+                    <div className="luxor-card p-2 group focus-within:border-luxor-accent/30 transition-all duration-500 relative">
                       <textarea
                         id="idea-input"
                         placeholder="Escribe tu idea estratégica de contenido..."
@@ -361,49 +320,26 @@ export default function App() {
                           ))}
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/5">
-                            <Target size={14} className="text-white/40" />
-                            <input 
-                              id="niche-input"
-                              placeholder="Nicho/Industria"
-                              value={niche}
-                              onChange={(e) => setNiche(e.target.value)}
-                              className="bg-transparent outline-none text-xs w-32 placeholder:text-white/20"
-                            />
-                          </div>
-                          {/* ✅ CORREGIDO: Analizar llama directamente a Gemini */}
-                          <button
-                            id="analyze-button"
-                            onClick={handleAnalyze}
-                            disabled={!idea || isAnalyzing}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold transition-all ${
-                              !idea || isAnalyzing ? 'bg-white/5 text-white/20' : 'bg-white text-black hover:scale-105 active:scale-95'
-                            }`}
-                          >
-                            {isAnalyzing ? (
-                              <RefreshCcw size={18} className="animate-spin" />
-                            ) : (
-                              <>
-                                <span>Analizar</span>
-                                <Plus size={18} />
-                              </>
-                            )}
-                          </button>
+                           <button
+                             id="analyze-button"
+                             onClick={handleAnalyze}
+                             disabled={isAnalyzing}
+                             className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold transition-all ${
+                               isAnalyzing ? 'bg-white/5 text-white/20' : 'bg-white text-black hover:scale-105 active:scale-95'
+                             }`}
+                           >
+                             {isAnalyzing ? (
+                               <RefreshCcw size={18} className="animate-spin" />
+                             ) : (
+                               <>
+                                 <span>Analizar</span>
+                                 <Plus size={18} />
+                               </>
+                             )}
+                           </button>
                         </div>
                       </div>
                     </div>
-
-                    {/* Error message */}
-                    {error && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl"
-                      >
-                        <AlertCircle size={16} className="text-red-400 shrink-0" />
-                        <p className="text-xs text-red-400 font-mono">{error}</p>
-                      </motion.div>
-                    )}
 
                     {isAnalyzing && (
                       <motion.div 
@@ -411,18 +347,39 @@ export default function App() {
                         animate={{ opacity: 1 }}
                         className="text-center space-y-4 py-8"
                       >
-                        <div className="flex justify-center gap-1">
-                          {[0,1,2].map(i => (
-                            <motion.div
-                              key={i}
-                              animate={{ height: [8, 24, 8] }}
-                              transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
-                              className="w-1 bg-luxor-accent rounded-full"
-                            />
-                          ))}
-                        </div>
-                        <p className="text-luxor-accent font-mono text-sm tracking-widest uppercase">Radar IA Activo...</p>
-                        <p className="text-white/40 text-[10px] uppercase font-bold italic tracking-tighter">Evaluando retención psicológica...</p>
+                         <div className="flex justify-center gap-1">
+                            {[0,1,2].map(i => (
+                              <motion.div
+                                key={i}
+                                animate={{ height: [8, 24, 8] }}
+                                transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+                                className="w-1 bg-luxor-accent rounded-full"
+                              />
+                            ))}
+                         </div>
+                         <p className="text-luxor-accent font-mono text-sm tracking-widest uppercase">Radar IA Activo...</p>
+                         <p className="text-white/40 text-[10px] uppercase font-bold italic tracking-tighter">Evaluando retención psicológica...</p>
+                      </motion.div>
+                    )}
+
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm"
+                      >
+                         <div className="flex items-center justify-between mb-2">
+                           <div className="flex items-center gap-2">
+                             <AlertCircle size={16} />
+                             <span className="font-bold">{error.message}</span>
+                           </div>
+                           <button onClick={handleAnalyze} className="text-[10px] font-black uppercase tracking-widest bg-red-500 text-white px-3 py-1 rounded-full">Reintentar</button>
+                         </div>
+                         {error.details && (
+                           <p className="text-[10px] text-red-500/60 font-mono mt-2 pl-6 border-l border-red-500/20 break-all">
+                             {error.details}
+                           </p>
+                         )}
                       </motion.div>
                     )}
                   </div>
@@ -450,55 +407,55 @@ export default function App() {
                   {/* Header Result - Bento Style */}
                   <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-12 lg:col-span-8 luxor-card p-8 flex flex-col justify-between relative overflow-hidden bg-gradient-to-br from-luxor-gray to-black">
-                      <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] pointer-events-none rotate-12">
-                        <Radar size={300} className="text-luxor-accent" strokeWidth={0.5} />
-                      </div>
-                      <div className="relative z-10 space-y-4">
-                        <span className="inline-block px-2 py-1 bg-luxor-accent text-black text-[10px] font-bold rounded uppercase tracking-wider">Análisis Completado</span>
-                        <h2 className="text-4xl font-display font-black leading-tight max-w-2xl">{result.idea}</h2>
-                        <div className="flex items-center gap-4 text-white/40 text-xs font-mono">
-                          <p>NICHO: <span className="text-white">{niche || 'Digital'}</span></p>
-                          <p>PLATAFORMA: <span className="text-white uppercase">{platform}</span></p>
-                        </div>
-                      </div>
-                      <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-8 relative z-10">
-                        {[
-                          { label: 'Viralidad', val: result.analysis.viralPotential, icon: Zap },
-                          { label: 'Autoridad', val: result.analysis.authorityPotential, icon: ShieldCheck },
-                          { label: 'Conversión', val: result.analysis.conversionPotential, icon: Target },
-                          { label: 'Retención Est.', val: result.analysis.retentionPotential, icon: TrendingUp },
-                        ].map(m => (
-                          <div key={m.label} className="space-y-1">
-                            <span className="text-[10px] uppercase font-bold text-white/40 tracking-tighter block">{m.label}</span>
-                            <p className="text-4xl font-black">{m.val * 10}<span className="text-lg opacity-20">/100</span></p>
-                            <div className="h-0.5 w-full bg-white/5 rounded-full mt-2 overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${m.val * 10}%` }}
-                                className="h-full bg-luxor-accent luxor-shadow"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                       <div className="absolute -top-10 -right-10 p-8 opacity-[0.03] pointer-events-none rotate-12">
+                          <Radar size={300} className="text-luxor-accent" strokeWidth={0.5} />
+                       </div>
+                       <div className="relative z-10 space-y-4">
+                         <span className="inline-block px-2 py-1 bg-luxor-accent text-black text-[10px] font-bold rounded uppercase tracking-wider">Análisis Completado</span>
+                         <h2 className="text-4xl font-display font-black leading-tight max-w-2xl">{result.idea}</h2>
+                         <div className="flex items-center gap-4 text-white/40 text-xs font-mono">
+                           <p>NICHO: <span className="text-white">{niche || 'Digital'}</span></p>
+                           <p>PLATAFORMA: <span className="text-white uppercase">{platform}</span></p>
+                         </div>
+                       </div>
+                       <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-8 relative z-10">
+                         {[
+                           { label: 'Viralidad', val: result.analysis.viralPotential, icon: Zap },
+                           { label: 'Autoridad', val: result.analysis.authorityPotential, icon: ShieldCheck },
+                           { label: 'Conversión', val: result.analysis.conversionPotential, icon: Target },
+                           { label: 'Retención Est.', val: result.analysis.retentionPotential, icon: TrendingUp },
+                         ].map(m => (
+                           <div key={m.label} className="space-y-1">
+                             <span className="text-[10px] uppercase font-bold text-white/40 tracking-tighter block">{m.label}</span>
+                             <p className="text-4xl font-black">{m.val * 10}<span className="text-lg opacity-20">/100</span></p>
+                             <div className="h-0.5 w-full bg-white/5 rounded-full mt-2 overflow-hidden">
+                               <motion.div 
+                                 initial={{ width: 0 }}
+                                 animate={{ width: `${m.val * 10}%` }}
+                                 className="h-full bg-luxor-accent luxor-shadow"
+                               />
+                             </div>
+                           </div>
+                         ))}
+                       </div>
                     </div>
 
                     <div className="col-span-12 lg:col-span-4 luxor-card p-8 flex flex-col items-center justify-center text-center space-y-4 border-luxor-accent/20 bg-luxor-accent/[0.02]">
                       <div className="relative w-48 h-48">
-                        <svg className="w-full h-full transform -rotate-90">
-                          <circle cx="96" cy="96" r="84" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-white/5" />
-                          <motion.circle 
-                            cx="96" cy="96" r="84" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={528} 
-                            initial={{ strokeDashoffset: 528 }}
-                            animate={{ strokeDashoffset: 528 - (528 * result.score) / 100 }}
-                            className="text-luxor-accent" 
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className="text-6xl font-display font-black leading-none">{result.score}</span>
-                          <span className="text-[10px] uppercase text-white/40 font-bold tracking-widest mt-1">Radar Score</span>
-                        </div>
+                         <svg className="w-full h-full transform -rotate-90">
+                           <circle cx="96" cy="96" r="84" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-white/5" />
+                           <motion.circle 
+                             cx="96" cy="96" r="84" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={528} 
+                             initial={{ strokeDashoffset: 528 }}
+                             animate={{ strokeDashoffset: 528 - (528 * result.score) / 100 }}
+                             className="text-luxor-accent" 
+                             strokeLinecap="round"
+                           />
+                         </svg>
+                         <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-6xl font-display font-black leading-none">{result.score}</span>
+                            <span className="text-[10px] uppercase text-white/40 font-bold tracking-widest mt-1">Radar Score</span>
+                         </div>
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm font-bold uppercase tracking-widest text-luxor-accent">Potencial Maravilloso</p>
@@ -508,111 +465,111 @@ export default function App() {
 
                     {/* Bento row 2 */}
                     <div className="col-span-12 md:col-span-6 lg:col-span-7 luxor-card p-8 space-y-6">
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 underline underline-offset-8 decoration-luxor-accent/50">
-                        Explosive Hooks
-                      </h3>
-                      <div className="space-y-4">
-                        {result.improvements.strongerHooks.map((h, i) => (
-                          <div key={i} className="group relative">
-                            <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl text-sm leading-relaxed pr-12 font-medium">
-                              {h}
-                            </div>
-                            <button 
-                              onClick={() => copyToClipboard(h, `hook-${i}`)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-luxor-accent transition-colors"
-                            >
-                              {copiedId === `hook-${i}` ? <CheckCircle2 size={16} className="text-luxor-accent" /> : <Copy size={16} />}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 underline underline-offset-8 decoration-luxor-accent/50">
+                           Explosive Hooks
+                        </h3>
+                        <div className="space-y-4">
+                           {result.improvements.strongerHooks.map((h, i) => (
+                             <div key={i} className="group relative">
+                               <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl text-sm leading-relaxed pr-12 font-medium">
+                                  {h}
+                               </div>
+                               <button 
+                                 onClick={() => copyToClipboard(h, `hook-${i}`)}
+                                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-luxor-accent transition-colors"
+                               >
+                                  {copiedId === `hook-${i}` ? <CheckCircle2 size={16} className="text-luxor-accent" /> : <Copy size={16} />}
+                               </button>
+                             </div>
+                           ))}
+                        </div>
                     </div>
 
                     <div className="col-span-12 md:col-span-6 lg:col-span-5 luxor-card p-8 space-y-6">
-                      <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 underline underline-offset-8 decoration-luxor-accent/50">
-                        Diagnóstico IA
-                      </h3>
-                      <div className="grid grid-cols-1 gap-4">
-                        {Object.entries(result.diagnosis).slice(0, 3).map(([key, data]: [string, any]) => (
-                          <div key={key} className="flex gap-4 p-3 rounded-xl hover:bg-white/[0.02] transition-colors border border-transparent hover:border-white/5">
-                            <div className={`mt-1 shrink-0 ${data.status === 'fuerte' || data.status === 'alta' ? 'text-luxor-accent' : 'text-amber-500'}`}>
-                              {data.status === 'fuerte' || data.status === 'alta' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                            </div>
-                            <div>
-                              <p className="text-[10px] uppercase font-bold text-white/20 tracking-wider font-mono">{key}</p>
-                              <p className="text-xs text-white/70 font-medium leading-relaxed">{data.detail}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 underline underline-offset-8 decoration-luxor-accent/50">
+                           Diagnóstico IA
+                        </h3>
+                        <div className="grid grid-cols-1 gap-4">
+                           {Object.entries(result.diagnosis).slice(0, 3).map(([key, data]: [string, any]) => (
+                             <div key={key} className="flex gap-4 p-3 rounded-xl hover:bg-white/[0.02] transition-colors border border-transparent hover:border-white/5">
+                               <div className={`mt-1 shrink-0 ${data.status === 'fuerte' || data.status === 'alta' ? 'text-luxor-accent' : 'text-amber-500'}`}>
+                                  {data.status === 'fuerte' || data.status === 'alta' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                               </div>
+                               <div>
+                                 <p className="text-[10px] uppercase font-bold text-white/20 tracking-wider font-mono">{key}</p>
+                                 <p className="text-xs text-white/70 font-medium leading-relaxed">{data.detail}</p>
+                               </div>
+                             </div>
+                           ))}
+                        </div>
                     </div>
 
                     {/* Bento row 3 */}
                     <div className="col-span-12 lg:col-span-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {(Object.entries(result.titles) as [string, string][]).map(([key, val]) => (
-                        <div key={key} className="luxor-card p-6 space-y-3 flex flex-col justify-between group h-full hover:bg-luxor-accent/[0.03]">
-                          <div>
-                            <span className="text-[10px] uppercase font-black text-luxor-accent tracking-widest block mb-2">{key}</span>
-                            <p className="text-sm font-bold leading-tight group-hover:text-white transition-colors">{val}</p>
-                          </div>
-                          <button 
-                            onClick={() => copyToClipboard(val, `title-${key}`)}
-                            className="w-full mt-4 flex items-center justify-center gap-2 py-2 bg-white/5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-luxor-accent hover:text-black transition-all"
-                          >
-                            {copiedId === `title-${key}` ? 'Copiado' : 'Copiar Título'}
-                          </button>
-                        </div>
-                      ))}
+                       {(Object.entries(result.titles) as [string, string][]).map(([key, val]) => (
+                         <div key={key} className="luxor-card p-6 space-y-3 flex flex-col justify-between group h-full hover:bg-luxor-accent/[0.03]">
+                            <div>
+                              <span className="text-[10px] uppercase font-black text-luxor-accent tracking-widest block mb-2">{key}</span>
+                              <p className="text-sm font-bold leading-tight group-hover:text-white transition-colors">{val}</p>
+                            </div>
+                            <button 
+                              onClick={() => copyToClipboard(val, `title-${key}`)}
+                              className="w-full mt-4 flex items-center justify-center gap-2 py-2 bg-white/5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-luxor-accent hover:text-black transition-all"
+                            >
+                               {copiedId === `title-${key}` ? 'Copiado' : 'Copiar Título'}
+                            </button>
+                         </div>
+                       ))}
                     </div>
 
                     {/* Bento row 4 */}
                     <div className="col-span-12 md:col-span-7 luxor-card p-8">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/40">Multi-Channel Transformation</h3>
-                        <span className="px-2 py-0.5 bg-luxor-accent/10 text-luxor-accent text-[10px] rounded-full uppercase font-bold">Smart Export Ready</span>
-                      </div>
-                      <div className="space-y-3">
-                        {(Object.entries(result.adaptation) as [string, string][]).map(([key, val]) => (
-                          <details key={key} className="group overflow-hidden rounded-xl border border-white/5 bg-white/[0.01]">
-                            <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-all">
-                              <div className="flex items-center gap-3">
-                                {key === 'tiktok' && <Smartphone size={16} className="text-emerald-400" />}
-                                {key === 'youtube' && <Youtube size={16} className="text-emerald-400" />}
-                                {key === 'linkedin' && <Linkedin size={16} className="text-emerald-400" />}
-                                {key === 'instagram' && <Instagram size={16} className="text-emerald-400" />}
-                                <span className="capitalize font-bold text-sm tracking-tight">{key} Content</span>
-                              </div>
-                              <ChevronRight className="group-open:rotate-90 transition-transform opacity-30" size={16} />
-                            </summary>
-                            <div className="p-5 bg-black/40 text-xs text-white/50 leading-relaxed font-mono whitespace-pre-wrap border-t border-white/5">
-                              {val}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
+                        <div className="flex justify-between items-center mb-6">
+                           <h3 className="text-sm font-bold uppercase tracking-widest text-white/40">Multi-Channel Transformation</h3>
+                           <span className="px-2 py-0.5 bg-luxor-accent/10 text-luxor-accent text-[10px] rounded-full uppercase font-bold">Smart Export Ready</span>
+                        </div>
+                        <div className="space-y-3">
+                           {(Object.entries(result.adaptation) as [string, string][]).map(([key, val]) => (
+                              <details key={key} className="group overflow-hidden rounded-xl border border-white/5 bg-white/[0.01]">
+                                 <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-all">
+                                    <div className="flex items-center gap-3">
+                                       {key === 'tiktok' && <Smartphone size={16} className="text-emerald-400" />}
+                                       {key === 'youtube' && <Youtube size={16} className="text-emerald-400" />}
+                                       {key === 'linkedin' && <Linkedin size={16} className="text-emerald-400" />}
+                                       {key === 'instagram' && <Instagram size={16} className="text-emerald-400" />}
+                                       <span className="capitalize font-bold text-sm tracking-tight">{key} Content</span>
+                                    </div>
+                                    <ChevronRight className="group-open:rotate-90 transition-transform opacity-30" size={16} />
+                                 </summary>
+                                 <div className="p-5 bg-black/40 text-xs text-white/50 leading-relaxed font-mono whitespace-pre-wrap border-t border-white/5">
+                                    {val}
+                                 </div>
+                              </details>
+                           ))}
+                        </div>
                     </div>
 
                     <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
-                      <div className="flex-1 luxor-card p-8 bg-luxor-accent/[0.05] border-luxor-accent/20 flex flex-col justify-center gap-4 text-center">
-                        <p className="text-xs uppercase font-black tracking-widest text-luxor-accent underline underline-offset-4">Retención de Audiencia</p>
-                        <div className="flex items-end justify-center gap-2 h-20">
-                          {[0.4, 0.7, 0.5, 0.9, 0.8, 1, 0.9].map((h, i) => (
-                            <motion.div 
-                              key={i}
-                              initial={{ height: 0 }}
-                              animate={{ height: `${h * 100}%` }}
-                              className={`w-4 rounded-t-sm ${i === 5 ? 'bg-luxor-accent' : 'bg-white/10'}`}
-                            />
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Predicción: Alta Retribución</p>
-                      </div>
-                      <button 
-                        onClick={handleNuevoAnalisis}
-                        className="w-full py-5 rounded-2xl luxor-button-primary font-black uppercase tracking-[0.2em] text-xs hover:scale-[1.02] active:scale-[0.98] transition-all"
-                      >
-                        Nuevo Escaneo IA
-                      </button>
+                       <div className="flex-1 luxor-card p-8 bg-luxor-accent/[0.05] border-luxor-accent/20 flex flex-col justify-center gap-4 text-center">
+                          <p className="text-xs uppercase font-black tracking-widest text-luxor-accent underline underline-offset-4">Retención de Audiencia</p>
+                          <div className="flex items-end justify-center gap-2 h-20">
+                             {[0.4, 0.7, 0.5, 0.9, 0.8, 1, 0.9].map((h, i) => (
+                               <motion.div 
+                                 key={i}
+                                 initial={{ height: 0 }}
+                                 animate={{ height: `${h * 100}%` }}
+                                 className={`w-4 rounded-t-sm ${i === 5 ? 'bg-luxor-accent' : 'bg-white/10'}`}
+                               />
+                             ))}
+                          </div>
+                          <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Predicción: Alta Retribución</p>
+                       </div>
+                       <button 
+                         onClick={() => setResult(null)}
+                         className="w-full py-5 rounded-2xl luxor-button-primary font-black uppercase tracking-[0.2em] text-xs hover:scale-[1.02] active:scale-[0.98] transition-all"
+                       >
+                         Nuevo Escaneo IA
+                       </button>
                     </div>
                   </div>
                 </motion.div>
@@ -621,70 +578,91 @@ export default function App() {
           )}
 
           {activeTab === 'history' && (
-            <div className="space-y-8 py-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-display font-bold">Historial de Radar</h2>
-                <button 
-                  onClick={() => { setHistory([]); localStorage.removeItem('luxor_history'); }}
-                  className="text-xs text-white/20 hover:text-red-500 transition-colors uppercase tracking-widest font-bold"
-                >
-                  Limpiar todo
-                </button>
-              </div>
-              {history.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {history.map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => { setResult(item); setActiveTab('analyzer'); }}
-                      className="luxor-card p-6 cursor-pointer hover:border-luxor-gold/30 transition-all group"
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-[10px] font-mono text-white/40">{new Date(item.timestamp!).toLocaleDateString()}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-display font-black text-luxor-accent">{item.score}</span>
-                          <ArrowRight size={14} className="text-white/20 group-hover:text-white transition-all transform group-hover:translate-x-1" />
-                        </div>
+             <div className="space-y-8 py-8">
+                <div className="flex items-center justify-between">
+                   <h2 className="text-3xl font-display font-bold">Historial de Radar</h2>
+                   <button 
+                     onClick={() => { setHistory([]); localStorage.removeItem('luxor_history'); }}
+                     className="text-xs text-white/20 hover:text-red-500 transition-colors uppercase tracking-widest font-bold"
+                   >
+                     Limpiar todo
+                   </button>
+                </div>
+                {history.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {history.map((item, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => { setResult(item); setActiveTab('analyzer'); }}
+                        className="luxor-card p-6 cursor-pointer hover:border-luxor-gold/30 transition-all group"
+                      >
+                         <div className="flex items-center justify-between mb-4">
+                            <span className="text-[10px] font-mono text-white/40">{new Date(item.timestamp!).toLocaleDateString()}</span>
+                            <div className="flex items-center gap-2">
+                               <span className="text-lg font-display font-black text-luxor-accent">{item.score}</span>
+                               <ArrowRight size={14} className="text-white/20 group-hover:text-white transition-all transform group-hover:translate-x-1" />
+                            </div>
+                         </div>
+                         <p className="font-bold line-clamp-2 leading-snug group-hover:text-luxor-accent transition-colors">{item.idea}</p>
                       </div>
-                      <p className="font-bold line-clamp-2 leading-snug group-hover:text-luxor-accent transition-colors">{item.idea}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-20 text-center luxor-card border-dashed border-white/10 bg-transparent">
-                  <p className="text-white/20">No hay ideas analizadas todavía.</p>
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center luxor-card border-dashed border-white/10 bg-transparent">
+                     <p className="text-white/20">No hay ideas analizadas todavía.</p>
+                  </div>
+                )}
+             </div>
           )}
 
           {activeTab === 'trends' && (
-            <div className="space-y-8 py-8">
-              <h2 className="text-3xl font-display font-bold">Radar de Tendencias 2026</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { title: 'AI UGC + Avatars', growth: '+90%', desc: 'Contenido generado con IA para anuncios masivos.', tags: ['Marketing', 'Ecom'] },
-                  { title: 'Hiper-Autenticidad', growth: '+120%', desc: 'Valoración del error real y detrás de cámaras.', tags: ['Personal Brand'] },
-                  { title: 'Long Form Returns', growth: '+45%', desc: 'YouTube recuperando fuerza por autoridad.', tags: ['Edutainment'] },
-                  { title: 'Faceless Hubs', growth: '+200%', desc: 'Narraciones automáticas con storytelling IA.', tags: ['Niches'] },
-                  { title: 'Micro-Comunidades', growth: '+75%', desc: 'Intereses hiper-específicos dominan el feed.', tags: ['Community'] },
-                  { title: 'AI Multimodal', growth: '+310%', desc: 'Una idea genera 10 formatos instantáneamente.', tags: ['Future'] },
-                ].map((t, idx) => (
-                  <div key={idx} className="luxor-card p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-black text-sm uppercase tracking-tight">{t.title}</h4>
-                      <span className="text-[10px] font-mono text-luxor-accent font-bold px-2 py-0.5 bg-luxor-accent/10 rounded-full">{t.growth}</span>
-                    </div>
-                    <p className="text-[10px] text-white/40 leading-relaxed font-medium uppercase tracking-tighter">{t.desc}</p>
-                    <div className="flex gap-2">
-                      {t.tags.map(tag => (
-                        <span key={tag} className="text-[8px] uppercase tracking-tighter font-black px-2 py-0.5 bg-white/5 rounded-full border border-white/5 text-white/40">{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+             <div className="space-y-8 py-8">
+                <div className="flex items-center justify-between">
+                   <div>
+                     <h2 className="text-3xl font-display font-bold">Radar de Tendencias 2026</h2>
+                     <p className="text-xs text-white/40 mt-1 uppercase tracking-widest font-mono">Actualizado con señales globales de IA</p>
+                   </div>
+                   <button 
+                     onClick={refreshTrends}
+                     disabled={isTrendsUpdating}
+                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all bg-white/5 border border-white/10 hover:bg-white/10 ${isTrendsUpdating ? 'cursor-not-allowed opacity-50' : ''}`}
+                   >
+                     <RefreshCcw size={14} className={isTrendsUpdating ? 'animate-spin' : ''} />
+                     <span>{isTrendsUpdating ? 'Sincronizando...' : 'Actualizar Radar'}</span>
+                   </button>
+                </div>
+                
+                <AnimatePresence mode="wait">
+                  <motion.div 
+                    key={trends[0].title} // Force re-animation when order changes
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                  >
+                    {trends.map((t, idx) => (
+                       <motion.div 
+                         initial={{ opacity: 0, y: 10 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         transition={{ delay: idx * 0.1 }}
+                         key={idx} 
+                         className="luxor-card p-6 space-y-4 hover:border-luxor-accent/30 transition-all border-white/5"
+                       >
+                          <div className="flex items-center justify-between">
+                             <h4 className="font-black text-sm uppercase tracking-tight">{t.title}</h4>
+                             <span className="text-[10px] font-mono text-luxor-accent font-bold px-2 py-0.5 bg-luxor-accent/10 rounded-full">{t.growth}</span>
+                          </div>
+                          <p className="text-[10px] text-white/40 leading-relaxed font-medium uppercase tracking-tighter">{t.desc}</p>
+                          <div className="flex gap-2">
+                             {t.tags.map(tag => (
+                               <span key={tag} className="text-[8px] uppercase tracking-tighter font-black px-2 py-0.5 bg-white/5 rounded-full border border-white/5 text-white/40">{tag}</span>
+                             ))}
+                          </div>
+                       </motion.div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
+             </div>
           )}
         </div>
       </main>
